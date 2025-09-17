@@ -200,6 +200,13 @@ from celery.schedules import crontab
 CELERY_BEAT_SCHEDULE = {
     "create-daily-journals": {
         "task": "journal.tasks.create_daily_journals",
-        "schedule": 60, #
+        "schedule": crontab(minute=0, hour=0),  # Every day at midnight
     },
 }
+
+
+# production settings
+
+# CSRF_COOKIE_SECURE = True
+# SESSION_COOKIE_SECURE = True
+# CONN_MAX_AGE = 60  # seconds
