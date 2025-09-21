@@ -126,7 +126,7 @@ __pypackages__/
 
 # Celery stuff
 celerybeat-schedule
-celerybeat.pid
+celery-beat.pid
 
 # SageMath parsed files
 *.sage.py
@@ -139,6 +139,10 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# production stuff
+/staticfiles/
+.settings.py.swp
 
 # Spyder project settings
 .spyderproject
