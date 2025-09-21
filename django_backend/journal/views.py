@@ -61,8 +61,8 @@ class JournalViewSet(ViewSet):
 
         if(not user.verified):
             raise ValidationError("Please contact developer to verify your account.")
-
-        if not date_str or not opening_balance < 0:
+        
+        if not date_str or not opening_balance or opening_balance < 0:
             return Response({
                 "status": False,
                 "message": "Both 'date' and 'opening_balance' are required."
