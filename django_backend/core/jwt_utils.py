@@ -22,8 +22,8 @@ def generate_token_and_set_cookie(user, response):
         value=token,
         max_age=JWT_EXP_DELTA_SECONDS,
         httponly=True,
-        secure=False,
-        samesite='Lax'
+        secure=True,
+        samesite='None'
     )
 
     return response
