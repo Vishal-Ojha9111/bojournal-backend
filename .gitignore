@@ -141,7 +141,7 @@ env.bak/
 venv.bak/
 
 # production stuff
-/staticfiles/
+staticfiles/
 .settings.py.swp
 
 # Spyder project settings

@@ -13,6 +13,10 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 from decouple import config
 from dotenv import load_dotenv
+from celery.schedules import crontab
+import os
+
+print('loaded main settings')
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,25 +24,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv()
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = config('SECRET_KEY')
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG')
-
-ALLOWED_HOSTS = []
-
-CORS_ALLOWED_ORIGINS = [
-    config('HOST'),
-    config('HOST2')
-]
-
-CSRF_TRUSTED_ORIGINS = [
-    config('HOST'),
-    config('HOST2')
-]
-
 
 
 CORS_ALLOW_CREDENTIALS = True
@@ -59,6 +44,9 @@ INSTALLED_APPS = [
     'transactions',
     'journal',
     'holiday',
+    'registers',
+    'payment'
+    , 'emailservice'
 ]
 
 MIDDLEWARE = [
@@ -66,10 +54,10 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',  # Moved before AuthenticationMiddleware
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
 ]
 
 ROOT_URLCONF = 'django_backend.urls'
@@ -90,21 +78,6 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'django_backend.wsgi.application'
-
-
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME'),
-        'USER': config('DB_USER'),
-        'PASSWORD': config('DB_PASSWORD'),
-        'HOST': config('DB_HOST'),
-        'PORT': config('DB_PORT'),
-    }
-}
 
 
 # Password validation
@@ -131,8 +104,6 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'Asia/Kolkata'
-
 USE_I18N = True
 
 USE_TZ = True
@@ -148,30 +119,7 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CACHES = {
-    "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": config('REDIS_LOCATION'),
-        "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-        }
-    }
-}
-
-# Email settings
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = config('EMAIL_HOST')
-EMAIL_PORT = config('EMAIL_PORT')
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = config('EMAIL_USER')
-EMAIL_HOST_PASSWORD = config('EMAIL_PASSWORD')
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-
 AUTH_USER_MODEL = 'authapp.User'
-
-JWT_SECRET = config('JWT_SECRET')
-JWT_ALGORITHM = 'HS256'
-JWT_EXP_DELTA_SECONDS = 60*60*24*7
 
 REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': [
@@ -180,40 +128,338 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 10,
     'EXCEPTION_HANDLER': 'core.exception_handler.custom_exception_handler',
+    'DEFAULT_THROTTLE_CLASSES': [
+        'core.throttling.AuthenticatedUserRateThrottle',
+        'core.throttling.AnonymousUserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'authenticated_user': '100/minute',
+        'anonymous_user': '100/minute',
+        'auth_endpoint': '20/minute',
+    }
 }
 
-
-
-AWS_ACCESS_KEY_ID = config('S3_ACCESS_KEY')
-AWS_SECRET_ACCESS_KEY = config('S3_SECRET_ACCESS_KEY')
-AWS_STORAGE_BUCKET_NAME = config('S3_BUCKET_NAME')
-AWS_S3_REGION_NAME = config('S3_REGION')
-
-
-CELERY_BROKER_URL = config('REDIS_LOCATION')
-CELERY_RESULT_BACKEND = config('REDIS_LOCATION')
-CELERY_ACCEPT_CONTENT = ["json"]
-CELERY_TASK_SERIALIZER = "json"
-CELERY_RESULT_SERIALIZER = "json"
-CELERY_TIMEZONE = "Asia/Kolkata"  
-
-
-from celery.schedules import crontab
-
-CELERY_BEAT_SCHEDULE = {
-    "create-daily-journals": {
-        "task": "journal.tasks.create_daily_journals",
-        "schedule": crontab(minute=0, hour=0),  # Every day at midnight
-    },
-}
+ALLOWED_IMAGE_KEYS = ['profile_pictures/', 'transactions/']
 
 
 # production settings
+if config('PRODUCTION', default=False, cast=bool):
 
-# CSRF_COOKIE_SECURE = True
-# SESSION_COOKIE_SECURE = True
-# CONN_MAX_AGE = 60  # seconds
-# STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-# CSRF_COOKIE_SECURE = True
+    # Security Headers
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_SSL_REDIRECT = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# CSRF_COOKIE_SAMESITE = 'None'
+    CSRF_COOKIE_SECURE = True
+    CSRF_COOKIE_SAMESITE = 'None'
+    CSRF_COOKIE_HTTPONLY = False  # Must be False for JavaScript access
+
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = 'None'
+
+    # Database connection pooling - 10 minutes for production
+    CONN_MAX_AGE = 600
+
+    STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+    # SECURITY WARNING: don't run with debug turned on in production!
+    DEBUG = False
+
+    ALLOWED_HOSTS = [config('HOST0')]
+
+    CORS_ALLOWED_ORIGINS = [
+        config('ORIGIN0'),
+        config('ORIGIN1')
+    ]
+
+    CSRF_TRUSTED_ORIGINS = [
+        config('ORIGIN0'),
+        config('ORIGIN1')
+    ]
+
+    # SECURITY WARNING: keep the secret key used in production secret!
+    SECRET_KEY = config('SECRET_KEY')
+
+    # Database
+    # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME'),
+            'USER': config('DB_USER'),
+            'PASSWORD': config('DB_PASSWORD'),
+            'HOST': config('DB_HOST'),
+            'PORT': config('DB_PORT'),
+            'CONN_MAX_AGE': 600,  # Connection pooling: 10 minutes
+            'OPTIONS': {
+                'connect_timeout': 10,
+                'options': '-c statement_timeout=30000'  # 30 seconds query timeout
+            }
+        }
+    }
+
+    TIME_ZONE = config("TIMEZONE")
+
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": config('REDIS_LOCATION'),
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            }
+        }
+    }
+
+    # Email settings
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = config('EMAIL_HOST')
+    EMAIL_PORT = config('EMAIL_PORT')
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = config('EMAIL_USER')
+    EMAIL_HOST_PASSWORD = config('EMAIL_PASSWORD')
+    DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+    JWT_SECRET = config('JWT_SECRET')
+    JWT_ALGORITHM = 'HS256'
+    JWT_EXP_DELTA_SECONDS = 60*60*24*3  # 3 days
+    JWT_REFRESH_EXP_DELTA_SECONDS = 60*60*24*30  # 30 days
+    JWT_COOKIE_NAME = 'boj_token'
+    JWT_REFRESH_COOKIE_NAME = 'boj_refresh_token'
+    JWT_COOKIE_SECURE = True
+    JWT_COOKIE_SAMESITE = 'None'
+
+    AWS_ACCESS_KEY_ID = config('S3_ACCESS_KEY')
+    AWS_SECRET_ACCESS_KEY = config('S3_SECRET_ACCESS_KEY')
+    AWS_STORAGE_BUCKET_NAME = config('S3_BUCKET_NAME')
+    AWS_S3_REGION_NAME = config('S3_REGION')
+    AWS_PRESIGNED_URL_EXPIRES = config('S3_PRESIGNED_URL_EXPIRES', default=600, cast=int)
+
+    CELERY_BROKER_URL = config('REDIS_LOCATION')
+    CELERY_RESULT_BACKEND = config('REDIS_LOCATION')
+    CELERY_ACCEPT_CONTENT = ["json"]
+    CELERY_TASK_SERIALIZER = "json"
+    CELERY_RESULT_SERIALIZER = "json"
+    CELERY_TIMEZONE = config("TIMEZONE")
+    
+    # Email Priority Queues Configuration
+    # Three priority levels for email sending:
+    # - critical: OTP emails (immediate, user waiting)
+    # - high: Subscription updates (important, time-sensitive)
+    # - low: Welcome emails (informational, can wait)
+    CELERY_TASK_ROUTES = {
+        'emailservice.tasks.send_email_task': {
+            'queue': 'default',  # Will be overridden by apply_async queue parameter
+        },
+    }
+    
+    # Queue priority configuration (higher number = higher priority)
+    CELERY_TASK_QUEUE_MAX_PRIORITY = 10
+    CELERY_TASK_DEFAULT_PRIORITY = 5
+    
+    # Broker transport options for priority support
+    CELERY_BROKER_TRANSPORT_OPTIONS = {
+        'priority_steps': list(range(11)),  # 0-10 priority levels
+        'queue_order_strategy': 'priority',
+    }
+
+    CELERY_BEAT_SCHEDULE = {
+        "create-daily-journals": {
+            "task": "journal.tasks.create_daily_journals",
+            "schedule": crontab(minute=0, hour=0),  # Every day at midnight
+        },
+        "update-subscriptions": {
+            "task": "payment.tasks.update_subscription",
+            "schedule": crontab(minute=0, hour=0),  # Every day at midnight
+        },
+    }
+
+    RAZORPAY_KEY = config('RAZORPAY_KEY')
+    RAZORPAY_SECRET = config('RAZORPAY_SECRET')
+    
+    # JSON Logging for production
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'json': {
+                '()': 'pythonjsonlogger.jsonlogger.JsonFormatter',
+                'format': '%(asctime)s %(name)s %(levelname)s %(message)s %(pathname)s %(lineno)d %(funcName)s'
+            },
+            'verbose': {
+                'format': '{levelname} {asctime} {module} {message}',
+                'style': '{',
+            },
+        },
+        'handlers': {
+            'console': {
+                'class': 'logging.StreamHandler',
+                'formatter': 'json',
+            },
+            'file': {
+                'class': 'logging.handlers.RotatingFileHandler',
+                'filename': os.path.join(BASE_DIR, 'logs', 'app.log'),
+                'maxBytes': 1024 * 1024 * 10,  # 10MB
+                'backupCount': 5,
+                'formatter': 'json',
+            },
+        },
+        'root': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+        },
+        'loggers': {
+            'django': {
+                'handlers': ['console', 'file'],
+                'level': 'INFO',
+                'propagate': False,
+            },
+            'authapp': {
+                'handlers': ['console', 'file'],
+                'level': 'INFO',
+                'propagate': False,
+            },
+            'journal': {
+                'handlers': ['console', 'file'],
+                'level': 'INFO',
+                'propagate': False,
+            },
+            'transactions': {
+                'handlers': ['console', 'file'],
+                'level': 'INFO',
+                'propagate': False,
+            },
+        },
+    }
+    
+    # Create logs directory if it doesn't exist
+    import os
+    os.makedirs(os.path.join(BASE_DIR, 'logs'), exist_ok=True)
+    
+else:
+    # development settings
+    # Security Headers (relaxed for development)
+    SECURE_SSL_REDIRECT = False
+    SECURE_HSTS_SECONDS = 0
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    X_FRAME_OPTIONS = 'SAMEORIGIN'
+    
+    # CSRF Settings for Development
+    CSRF_COOKIE_SECURE = False  # Allow HTTP in development
+    CSRF_COOKIE_SAMESITE = 'Lax'
+    CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript access
+    CSRF_COOKIE_DOMAIN = None  # Allow localhost
+    CSRF_COOKIE_PATH = '/'
+    CSRF_USE_SESSIONS = False  # Use cookie-based CSRF
+    CSRF_COOKIE_NAME = 'csrftoken'
+    CSRF_HEADER_NAME = 'HTTP_X_CSRFTOKEN'
+
+    # SECURITY WARNING: don't run with debug turned on in production!
+    DEBUG = True
+
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]']  # Explicit allowed hosts for development
+
+    CORS_ALLOWED_ORIGINS = [
+        "http://127.0.0.1:5173",
+        "http://localhost:5173"
+    ]
+
+    CSRF_TRUSTED_ORIGINS = [
+        "http://127.0.0.1:5173",
+        "http://localhost:5173"
+    ]
+
+    # SECURITY WARNING: keep the secret key used in production secret!
+    SECRET_KEY = 'django-insecure-^04^4w_@m&cau1l(mbb^!i_dnt*hef+zaavaaj0+($(a-fmorz'
+
+    # Database
+    # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': 'bo_journal',
+            'USER': 'postgres',
+            'PASSWORD': 'secret',
+            'HOST': 'localhost',
+            'PORT': 5432,
+        }
+    }
+
+    TIME_ZONE = config("TIMEZONE")
+
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": "redis://127.0.0.1:6379/1",
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            }
+        }
+    }
+
+    # Email settings
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = config('EMAIL_HOST')
+    EMAIL_PORT = config('EMAIL_PORT')
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = config('EMAIL_USER')
+    EMAIL_HOST_PASSWORD = config('EMAIL_PASSWORD')
+    DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+    JWT_SECRET = config('JWT_SECRET')
+    JWT_ALGORITHM = 'HS256'
+    JWT_EXP_DELTA_SECONDS = 60*60*24*3  # 3 days
+    JWT_REFRESH_EXP_DELTA_SECONDS = 60*60*24*30  # 30 days
+    JWT_COOKIE_NAME = 'boj_token'
+    JWT_REFRESH_COOKIE_NAME = 'boj_refresh_token'
+    JWT_COOKIE_SECURE = True
+    JWT_COOKIE_SAMESITE = 'Lax'
+
+    AWS_ACCESS_KEY_ID = config('S3_ACCESS_KEY')
+    AWS_SECRET_ACCESS_KEY = config('S3_SECRET_ACCESS_KEY')
+    AWS_STORAGE_BUCKET_NAME = config('S3_BUCKET_NAME')
+    AWS_S3_REGION_NAME = config('S3_REGION')
+    AWS_PRESIGNED_URL_EXPIRES = config('S3_PRESIGNED_URL_EXPIRES', default=600, cast=int)
+
+    CELERY_BROKER_URL = 'redis://127.0.0.1:6379/1'
+    CELERY_RESULT_BACKEND = 'redis://127.0.0.1:6379/1'
+    CELERY_ACCEPT_CONTENT = ["json"]
+    CELERY_TASK_SERIALIZER = "json"
+    CELERY_RESULT_SERIALIZER = "json"
+    CELERY_TIMEZONE = config("TIMEZONE")
+    
+    # Email Priority Queues Configuration
+    # Three priority levels for email sending:
+    # - critical: OTP emails (immediate, user waiting)
+    # - high: Subscription updates (important, time-sensitive)
+    # - low: Welcome emails (informational, can wait)
+    CELERY_TASK_ROUTES = {
+        'emailservice.tasks.send_email_task': {
+            'queue': 'default',  # Will be overridden by apply_async queue parameter
+        },
+    }
+    
+    # Queue priority configuration (higher number = higher priority)
+    CELERY_TASK_QUEUE_MAX_PRIORITY = 10
+    CELERY_TASK_DEFAULT_PRIORITY = 5
+    
+    # Broker transport options for priority support
+    CELERY_BROKER_TRANSPORT_OPTIONS = {
+        'priority_steps': list(range(11)),  # 0-10 priority levels
+        'queue_order_strategy': 'priority',
+    }
+
+    CELERY_BEAT_SCHEDULE = {
+        "create-daily-journals": {
+            "task": "journal.tasks.create_daily_journals",
+            "schedule": crontab(minute=0, hour=0),  # Every day at midnight
+        },
+    }
+
+    RAZORPAY_KEY = config('RAZORPAY_KEY')
+    RAZORPAY_SECRET = config('RAZORPAY_SECRET')

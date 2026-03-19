@@ -11,6 +11,15 @@ class Journal(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     date = models.DateField()
     
+    class Meta:
+        indexes = [
+            models.Index(fields=['user', 'date'], name='journal_user_date_idx'),
+            models.Index(fields=['user', 'is_holiday'], name='journal_user_holiday_idx'),
+            models.Index(fields=['date'], name='journal_date_idx'),
+        ]
+        # Ensure unique journal per user per date
+        unique_together = [['user', 'date']]
+        ordering = ['-date']
 
     def __str__(self):
         return f"{self.user.email} - {self.opening_balance} - {self.date} - {self.closing_balance}"

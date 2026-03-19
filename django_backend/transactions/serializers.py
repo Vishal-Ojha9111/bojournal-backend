@@ -3,12 +3,14 @@ from .models import Transaction
 from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from registers.models import Register
 
 User = get_user_model()
 
 
 class TransactionSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False)
+    register = serializers.PrimaryKeyRelatedField(queryset=Register.objects.all(), required=True)
     image_keys = serializers.ListField(
         child=serializers.CharField(),
         required=False,

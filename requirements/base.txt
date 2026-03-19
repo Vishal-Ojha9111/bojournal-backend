@@ -1,0 +1,63 @@
+# Base Requirements
+# Core dependencies required for all environments
+
+# Django Framework
+Django==5.2.4
+asgiref==3.9.0
+sqlparse==0.5.3
+tzdata==2025.2
+
+# Django REST Framework
+djangorestframework==3.16.0
+djangorestframework-simplejwt==5.5.0
+
+# Database
+psycopg2-binary==2.9.10
+
+# Celery for async tasks
+celery==5.5.3
+amqp==5.3.1
+billiard==4.2.1
+kombu==5.5.4
+vine==5.1.0
+
+# Redis
+redis==5.2.1
+django-redis==6.0.0
+
+# AWS S3
+boto3==1.40.1
+botocore==1.40.1
+s3transfer==0.13.1
+jmespath==1.0.1
+
+# Authentication & Security
+PyJWT==2.9.0
+python-decouple==3.8
+
+# CORS
+django-cors-headers==4.7.0
+
+# Filtering
+django-filter==25.1
+
+# Utilities
+python-dateutil==2.9.0.post0
+urllib3==2.5.0
+six==1.17.0
+packaging==25.0
+
+# Razorpay payment gateway
+razorpay==1.4.2
+
+# Templates & Email
+jinja2==3.1.2
+beautifulsoup4==4.12.2
+
+# CLI utilities
+click==8.2.1
+click-didyoumean==0.3.1
+click-plugins==1.1.1.2
+click-repl==0.3.0
+prompt-toolkit==3.0.51
+wcwidth==0.2.13

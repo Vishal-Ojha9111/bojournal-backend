@@ -19,8 +19,22 @@ from django.urls import path, include
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    
+    # API v2 endpoints (current version)
+    path('api/v2/auth/', include('authapp.urls')),
+    path('api/v2/transactions/', include('transactions.urls')),
+    path('api/v2/journal/', include('journal.urls')),
+    path('api/v2/holiday/', include('holiday.urls')),
+    path('api/v2/registers/', include('registers.urls')),
+    path('api/v2/payment/', include('payment.urls')),
+    path('api/v2/emailservice/', include('emailservice.urls')),
+    
+    # Legacy v1 endpoints (for backward compatibility)
     path('api/auth/', include('authapp.urls')),
     path('api/transactions/', include('transactions.urls')),
     path('api/journal/', include('journal.urls')),
-    path('api/holiday/', include('holiday.urls'))
+    path('api/holiday/', include('holiday.urls')),
+    path('api/registers/', include('registers.urls')),
+    path('api/payment/', include('payment.urls')),
+    path('api/emailservice/', include('emailservice.urls')),
 ]
