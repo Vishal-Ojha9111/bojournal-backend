@@ -1,0 +1,42 @@
+name: CD - Deploy to Staging
+
+on:
+  push:
+    branches:
+      - develop
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to EC2 (Staging)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            cd /var/www/bojournal
+            
+            # Pull latest code
+            git pull origin develop
+            
+            # Install dependencies
+            source venv/bin/activate
+            pip install -r requirements/production.txt
+            
+            # Collect static files
+            python manage.py collectstatic --noinput
+            
+            # Run database migrations
+            python manage.py migrate
+            
+            # Restart gunicorn
+            sudo systemctl restart gunicorn.service
+            
+            # Check status
+            sudo systemctl status gunicorn.service --no-pager
